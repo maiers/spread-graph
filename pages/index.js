@@ -1,22 +1,17 @@
 import React, {Component} from 'react';
 
 import Workbook from '../components/workbook';
+import TableEngine from "../components/table-engine";
 
 class WorkbookState extends Component {
 
-    state = {
-        tables: []
-    };
-
-    handleChange(tables) {
-        this.setState({
-            tables
-        });
-    };
+    constructor(props) {
+        super(props);
+        this.tables = new TableEngine();
+    }
 
     render() {
-        const {tables} = this.state;
-        return <Workbook tables={tables} onChange={(tables) => this.handleChange(tables)}/>
+        return <Workbook tableEngine={this.tables} />
     }
 
 }

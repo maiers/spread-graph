@@ -1,18 +1,44 @@
 import React, {Component} from 'react';
+import PropTypes from 'prop-types';
 import Table from '../components/table';
 
 class Workbook extends Component {
 
+    constructor(props) {
+        super(props);
+
+        const {tableEngine} = this.props;
+        tableEngine.addListener(() => {
+            this.setState({
+                tables: tableEngine.listTables()
+            });
+        });
+
+    }
+
+    state = {
+        tables: []
+    };
+
+    static propTypes = {
+        tableEngine: PropTypes.object.isRequired
+    };
+
     render() {
 
-        const {tables, onChange} = this.props;
+        const {tableEngine} = this.props;
+        const {tables} = this.state;
 
         return (
             <div>
                 <h1>Workbook</h1>
-                <a onClick={() => onChange([...tables, {name: `Table ${tables.length + 1}`}])}>Add table</a>
+                <a onClick={() => tableEngine.addTable(`Table ${tables.length + 1}`)}>Add table</a>
                 {
-                    tables.map((t, index) => <Table key={t.name} {...t} onChange={(t) => onChange([...tables.slice(0,index), t, ...tables.slice(index+1)])}/>)
+                    tables.map((t, index) => {
+                        return (
+                            <Table key={t.name} table={t}/>
+                        );
+                    })
                 }
             </div>
         );

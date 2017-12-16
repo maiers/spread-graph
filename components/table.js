@@ -1,15 +1,54 @@
 import React, {Component} from 'react';
+import PropTypes from 'prop-types';
+
+const defaultTable = () => {
+    return {
+        cols: [
+            {name: 'Column 1', data: null},
+            {name: 'Column 2', data: null},
+            {name: 'Column 3', data: null},
+            {name: 'Column 4', data: null}
+        ]
+    };
+};
 
 class Table extends Component {
 
+    constructor(props) {
+        super(props);
+
+        const {table} = this.props;
+        table.addListener((...args) => {
+            console.log('Table Component Listener', args);
+            this.setState({
+                id: table.getId(),
+                name: table.getName(),
+                columns: table.listColumns(),
+                rowCount: table.getRowCount()
+            });
+        });
+
+        this.state = {
+            id: table.getId(),
+            name: table.getName(),
+            columns: table.listColumns(),
+            rowCount: table.getRowCount()
+        };
+
+    }
+
+    static propTypes = {
+        table: PropTypes.object.isRequired
+    };
+
     handleAddRow() {
-        const {name, cols = [{name: 'Column 1'}], data = [[null]], onChange} = this.props;
+        const {name, cols = defaultTable().cols, data = defaultTable().data, onChange} = this.props;
         data.push(cols.map(c => null));
         onChange({name, cols, data});
     }
 
     handleAddCol() {
-        const {name, cols = [{name: 'Column 1'}], data = [[null]], onChange} = this.props;
+        const {name, cols = defaultTable().cols, data = defaultTable().data, onChange} = this.props;
         cols.push({name: `Column ${cols.length + 1}`});
         data.forEach(row => {
             row.push(null);
@@ -19,9 +58,72 @@ class Table extends Component {
 
     render() {
 
-        const {name, cols = [{name: 'Column 1'}], data = [[null]]} = this.props;
+        const {table} = this.props;
+        const {id, name, columns, rowCount} = this.state;
 
-        const columnCount = cols.length + 2; // num columns + rowIndex + add-column
+        const columnCount = columns.length + 2; // num columns + rowIndex + add-column
+
+        const dataRows = [];
+
+        for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+            const rowCells = [];
+            rowCells.push(<td key="index">{rowIndex + 1}</td>);
+            columns.forEach((column, columnIndex) => {
+
+                const handleCellKeyUp = (e) => {
+                    const code = e.keyCode;
+                    switch (code) {
+                        case 37: // left
+                            if (e.getModifierState('Control')) {
+                                document.querySelector(`#C${(columns.length + columnIndex - 1) % columns.length}R${rowIndex}`).focus();
+                            }
+                            break;
+                        case 38: // up
+                            if (e.getModifierState('Control')) {
+                                document.querySelector(`#C${columnIndex}R${(table.getRowCount() + rowIndex - 1) % table.getRowCount()}`).focus();
+                            }
+                            break;
+                        case 39: // right
+                            if (e.getModifierState('Control')) {
+                                document.querySelector(`#C${(columnIndex + 1) % columns.length}R${rowIndex}`).focus();
+                            }
+                            break;
+                        case 40: // down
+                            if (e.getModifierState('Control')) {
+                                document.querySelector(`#C${columnIndex}R${(rowIndex + 1) % table.getRowCount()}`).focus();
+                            }
+                            break;
+                        case 13: // enter
+                            if(e.getModifierState('Shift')) {
+                                // move up
+                                document.querySelector(`#C${columnIndex}R${(table.getRowCount() + rowIndex - 1) % table.getRowCount()}`).focus();
+                            } else if (!e.getModifierState('Alt')) {
+                                // move down
+                                document.querySelector(`#C${columnIndex}R${(rowIndex + 1) % table.getRowCount()}`).focus();
+                            }
+                    }
+                };
+
+                rowCells.push(
+                    <td key={column.getId()} onKeyUp={handleCellKeyUp}>
+                        <input
+                            id={`C${columnIndex}R${rowIndex}`}
+                            type="text"
+                            value={column.getRowValue(rowIndex) || ''}
+                            onChange={(e) => column.setRowValue(rowIndex, e.target.value)}
+                        />
+                    </td>
+                )
+            });
+            if (rowIndex === 0) {
+                rowCells.push(
+                    <td key="add-columns" className="add add-columns" rowSpan={rowCount}>
+                        <a onClick={() => table.addColumn(`Column ${columns.length + 1}`)}>+</a>
+                    </td>
+                );
+            }
+            dataRows.push(<tr key={rowIndex}>{rowCells}</tr>);
+        }
 
         return (
             <div>
@@ -64,56 +166,45 @@ class Table extends Component {
                     `}
                 </style>
                 <h2>{name}</h2>
+                <details>
+                    <summary>Source</summary>
+                    <div>
+                        <textarea style={{width: '100%', minHeight: '10em'}} value={table.getSource().get()} onChange={(e) => table.setSource(e.target.value)} />
+                        <button onClick={() => table.getSource().trySource()}>Try source</button>
+                    </div>
+                </details>
                 <table>
                     <thead>
                     <tr>
                         {
                             [
-                                <td></td>,
-                                ...cols.map(c => <th key={c.name}><input defaultValue={c.name} type="text"/></th>),
-                                <td></td>
+                                <td key="emptyIndex"></td>,
+                                ...columns.map(c => <th key={c.getName()}><input defaultValue={c.getName()}
+                                                                                 type="text"/></th>),
+                                <td key="emptyAddColume"></td>
                             ]
                         }
                     </tr>
                     <tr>
                         {
                             [
-                                <td></td>,
-                                ...cols.map(c => <th key={c.name}><input defaultValue={c.code} type="text"/></th>),
-                                <td></td>
+                                <td key="emptyIndex"></td>,
+                                ...columns.map(c => <th key={c.getName()}><input value={c.getCode() || ''} onChange={(e) => c.setCode(e.target.value)}
+                                                                                 type="text"/></th>),
+                                <td key="emptyAddColume"></td>
                             ]
                         }
                     </tr>
                     </thead>
                     <tbody>
                     {
-                        data.map((row, rowIndex) => {
-
-                            let dataCells = row.map((col, colIndex) => {
-                                return (
-                                    <td key={`C${colIndex}R${rowIndex}`}><input defaultValue={col} type="text"/></td>);
-                            });
-                            const cells = [<td>{rowIndex + 1}</td>, ...dataCells];
-
-                            if (rowIndex === 0) {
-                                cells.push(<td key="add-columns" className="add add-columns" rowSpan={data.length}><a
-                                    onClick={() => this.handleAddCol()}>+</a></td>)
-                            }
-
-                            return (
-                                <tr key={`R${rowIndex}`}>
-                                    {
-                                        cells
-                                    }
-                                </tr>
-                            );
-                        })
+                        dataRows
                     }
                     </tbody>
                     <tfoot>
                     <tr>
                         <td className="add add-rows" colSpan={columnCount}>
-                            <a onClick={() => this.handleAddRow()}>+</a>
+                            <a onClick={() => table.addRow()}>+</a>
                         </td>
                     </tr>
                     </tfoot>
